@@ -1,0 +1,62 @@
+<Model name="object" time="0">
+    <Environment __prop_name__="environment" gravity="{0,-9.8,0,0,0,0}"/>
+    <VariablePoolElement __prop_name__="variable_pool"/>
+    <PartPoolElement __prop_name__="part_pool">
+        <Part name="ground" active="true" pe="{0,0,0,-0,0,-0}" vel="{0,0,0,0,0,0}" acc="{0,0,0,0,0,0}" inertia="{1,0,0,0,1,1,1,0,0,0}">
+            <MarkerPoolElement __prop_name__="marker_pool">
+                <Marker name="joint_0_j" active="true" pe="{0,0,0,0.785398163397448,0,0.785398163397448}"/>
+                <Marker name="general_motion_0_j" active="true" pe="{0,0,0,-0,0,-0}"/>
+            </MarkerPoolElement>
+            <GeometryPoolElement __prop_name__="geometry_pool"/>
+        </Part>
+        <Part name="part_1" active="true" pe="{0,0,0,-0,0,-0}" vel="{0,0,0,0,0,0}" acc="{0,0,0,0,0,0}" inertia="{2,0,0,0,1,1,10,0,0,0}">
+            <MarkerPoolElement __prop_name__="marker_pool">
+                <Marker name="joint_0_i" active="true" pe="{0,0,0,0.785398163397448,0,0.785398163397448}"/>
+                <Marker name="joint_1_j" active="true" pe="{1,0,0,0.785398163397448,0,0.785398163397448}"/>
+            </MarkerPoolElement>
+            <GeometryPoolElement __prop_name__="geometry_pool"/>
+        </Part>
+        <Part name="part_2" active="true" pe="{1,0,0,0.785398163397448,0,0.785398163397448}" vel="{0,0,0,0,0,0}" acc="{0,0,0,0,0,0}" inertia="{2,0,0,0,1,1,10,0,0,0}">
+            <MarkerPoolElement __prop_name__="marker_pool">
+                <Marker name="joint_1_i" active="true" pe="{0,0,0,3.06161699786838e-17,0,3.06161699786838e-17}"/>
+                <Marker name="joint_2_j" active="true" pe="{1,6.12323399573677e-17,0,3.06161699786838e-17,0,3.06161699786838e-17}"/>
+            </MarkerPoolElement>
+            <GeometryPoolElement __prop_name__="geometry_pool"/>
+        </Part>
+        <Part name="part_3" active="true" pe="{1,1,0,0.785398163397448,0,0.785398163397448}" vel="{0,0,0,0,0,0}" acc="{0,0,0,0,0,0}" inertia="{2,0,0,0,1,1,10,0,0,0}">
+            <MarkerPoolElement __prop_name__="marker_pool">
+                <Marker name="joint_2_i" active="true" pe="{0,0,0,3.06161699786838e-17,0,3.06161699786838e-17}"/>
+                <Marker name="joint_3_j" active="true" pe="{0,0,0,3.06161699786838e-17,0,3.06161699786838e-17}"/>
+            </MarkerPoolElement>
+            <GeometryPoolElement __prop_name__="geometry_pool"/>
+        </Part>
+        <Part name="part_4" active="true" pe="{1,1,0,0.785398163397448,0,0.785398163397448}" vel="{0,0,0,0,0,0}" acc="{0,0,0,0,0,0}" inertia="{2,0,0,0,1,1,10,0,0,0}">
+            <MarkerPoolElement __prop_name__="marker_pool">
+                <Marker name="joint_3_i" active="true" pe="{0,0,0,3.06161699786838e-17,0,3.06161699786838e-17}"/>
+                <Marker name="general_motion_0_i" active="true" pe="{0,0,0,-0,0,-0}"/>
+            </MarkerPoolElement>
+            <GeometryPoolElement __prop_name__="geometry_pool"/>
+        </Part>
+    </PartPoolElement>
+    <MotionPoolElement __prop_name__="motion_pool">
+        <Motion name="motion_0" active="true" prt_m="part_1" prt_n="ground" mak_i="joint_0_i" mak_j="joint_0_j" cf="{0}" mp="{0}" mv="{0}" ma="{0}" component="5" pitch="0" rotate_range="0" mp_offset="0" mp_factor="1" frc_coe="{0,0,0}"/>
+        <Motion name="motion_1" active="true" prt_m="part_2" prt_n="part_1" mak_i="joint_1_i" mak_j="joint_1_j" cf="{0}" mp="{0}" mv="{0}" ma="{0}" component="5" pitch="0" rotate_range="0" mp_offset="0" mp_factor="1" frc_coe="{0,0,0}"/>
+        <Motion name="motion_2" active="true" prt_m="part_3" prt_n="part_2" mak_i="joint_2_i" mak_j="joint_2_j" cf="{0}" mp="{0}" mv="{0}" ma="{0}" component="2" pitch="0" rotate_range="0" mp_offset="0" mp_factor="1" frc_coe="{0,0,0}"/>
+        <Motion name="motion_3" active="true" prt_m="part_4" prt_n="part_3" mak_i="joint_3_i" mak_j="joint_3_j" cf="{0}" mp="{0}" mv="{0}" ma="{0}" component="5" pitch="0" rotate_range="0" mp_offset="0" mp_factor="1" frc_coe="{0,0,0}"/>
+    </MotionPoolElement>
+    <JointPoolElement __prop_name__="joint_pool">
+        <RevoluteJoint name="joint_0" active="true" prt_m="part_1" prt_n="ground" mak_i="joint_0_i" mak_j="joint_0_j" cf="{0,0,0,0,0}"/>
+        <RevoluteJoint name="joint_1" active="true" prt_m="part_2" prt_n="part_1" mak_i="joint_1_i" mak_j="joint_1_j" cf="{0,0,0,0,0}"/>
+        <PrismaticJoint name="joint_2" active="true" prt_m="part_3" prt_n="part_2" mak_i="joint_2_i" mak_j="joint_2_j" cf="{0,0,0,0,0}"/>
+        <RevoluteJoint name="joint_3" active="true" prt_m="part_4" prt_n="part_3" mak_i="joint_3_i" mak_j="joint_3_j" cf="{0,0,0,0,0}"/>
+    </JointPoolElement>
+    <GeneralMotionPoolElement __prop_name__="general_motion_pool">
+        <GeneralMotion name="general_motion_0" active="true" prt_m="part_4" prt_n="ground" mak_i="general_motion_0_i" mak_j="general_motion_0_j" cf="{0,0,0,0,0,0}" mp="{1.3,1,-0.3,0.3,-0,-0}" mv="{0,0,0,0,0,0}" ma="{0,0,0,0,0,0}" pose_type="EULER321" vel_type="VEL" acc_type="ACC"/>
+    </GeneralMotionPoolElement>
+    <ForcePoolElement __prop_name__="force_pool"/>
+    <SolverPoolElement __prop_name__="solver_pool">
+        <InverseKinematicSolver root_num="1" which_root="0" max_iter_count="100" max_error="0.0000000001"/>
+        <InverseDynamicSolver root_num="1" which_root="0" max_iter_count="100" max_error="0.0000000001"/>
+    </SolverPoolElement>
+    <CalibratorPoolElement __prop_name__="calibrator_pool"/>
+</Model>
