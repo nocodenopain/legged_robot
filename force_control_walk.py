@@ -20,7 +20,7 @@ class PIDController:
 
 class GaitParams:
     def __init__(self):
-        self.amplitude = 0.3
+        self.amplitude = 0.15
         self.frequency = 0.2
         self.phase_offset = np.pi / 2
 
@@ -55,7 +55,7 @@ pid_params = {
     'abduction': PIDController(50, 0, 2, model.opt.timestep),
     'hip': PIDController(50, 0, 2, model.opt.timestep),
     'knee_front': PIDController(30, 0, 1, model.opt.timestep),  # 前腿膝盖
-    'knee_rear': PIDController(80, 0, 10, model.opt.timestep),   # 后腿膝盖（支撑力更大）
+    'knee_rear': PIDController(70, 0, 2, model.opt.timestep),   # 后腿膝盖（支撑力更大）
 }
 
 gait = GaitParams()
@@ -72,20 +72,14 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
 
         # 生成目标关节角度
         target_pos = np.zeros(12)
-        # for leg in range(4):
-        #     phase = sim_time * 2 * np.pi * gait.frequency + leg_phase[leg]
-        #     side_sign = 1 if leg in [0, 2] else -1   # FR/RR是右腿，FL/RL是左腿
-        #     target_pos[leg*3 + 0] = 0.2 * side_sign * np.sin(phase)    # abduction镜像
-        #     target_pos[leg*3 + 1] = 0.7 + gait.amplitude * np.sin(phase)  # hip
-        #     target_pos[leg*3 + 2] = -1.5 + 0.3 * np.sin(phase)  # knee
         for leg in range(4):
             phase = sim_time * 2 * np.pi * gait.frequency + leg_phase[leg]
             side_sign = 1 if leg in [0, 2] else -1  # FR/RR是右腿，FL/RL是左腿
 
             # 基础步态
             abduction = 0.2 * side_sign * np.sin(phase)
-            hip = 0.7 + gait.amplitude * np.sin(phase)
-            knee = -1.5 + 0.3 * np.sin(phase)
+            hip = 0.75 + gait.amplitude * np.sin(phase)
+            knee = -1.3 + 0.15 * np.sin(phase)
 
             # 追加 roll 姿态补偿项（单位为 rad，小于 0.3），尝试系数 0.4 可调
             roll_comp = 0.4 * roll
@@ -121,14 +115,9 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
 
             ctrl[actuator_indices[i]] = pid_params[joint_type].compute(error, current_vel)
 
-        ctrl = ctrl / 2
-
         # 限制范围并赋值
         data.ctrl[:] = np.clip(ctrl, -33.5, 33.5)
         
-        # Debug用
-        print(data.actuator_force[:])
-
         # 步进仿真
         mujoco.mj_step(model, data)
         viewer.sync()
