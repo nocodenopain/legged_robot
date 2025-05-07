@@ -21,7 +21,7 @@ class PIDController:
 class GaitParams:
     def __init__(self):
         self.amplitude = 0.15
-        self.frequency = 0.2
+        self.frequency = 0.1
         self.phase_offset = np.pi / 2
 
 # 加载模型
@@ -43,11 +43,59 @@ actuator_indices = [model.actuator(name).id for name in [
     "RL_hip", "RL_thigh", "RL_calf"
 ]]
 
+def foot_trajectory(phase, swing_time, stance_time, step_height, step_length):
+    phase = phase % (swing_time + stance_time)
+    if phase < stance_time:
+        # 支撑相：足端不动，保持接触
+        return np.array([0.0, 0.0, -0.25])
+    else:
+        # 摆动相：椭圆轨迹
+        swing_phase = (phase - stance_time) / swing_time
+        x = -0.5 * step_length * np.cos(np.pi * swing_phase)  # 从后向前
+        z = -0.25 + step_height * np.sin(np.pi * swing_phase)  # 抬腿
+        return np.array([x, 0.0, z])
+
+def leg_inverse_kinematics(foot_pos, leg_origin, side_sign):
+    """
+    foot_pos: 足端在腿坐标系下的目标位置
+    leg_origin: 该腿相对身体的位置（用于变换坐标）
+    side_sign: 左右腿区分符（左右反转）
+
+    返回：[abduction, hip, knee]
+    """
+    x, y, z = foot_pos
+    # 三连杆简化模型
+    L1 = 0.0838  # hip to thigh
+    L2 = 0.2     # thigh to knee
+    L3 = 0.2     # knee to foot
+
+    abduction = np.arctan2(y, -z)
+
+    hip_to_foot = np.sqrt(x**2 + z**2)
+    hip_angle = np.arctan2(-x, -z)
+    D = (hip_to_foot**2 - L2**2 - L3**2) / (2 * L2 * L3)
+    knee = np.arccos(np.clip(D, -1.0, 1.0))
+
+    # Law of cosines
+    alpha = np.arctan2(z, x)
+    beta = np.arccos(np.clip((L2**2 + hip_to_foot**2 - L3**2) / (2 * L2 * hip_to_foot), -1.0, 1.0))
+    hip = -(alpha + beta)
+
+    return np.array([abduction * side_sign, hip, -knee])
+
+
+# leg_phase = {
+#     0: 0,          # FR
+#     1: np.pi,      # FL
+#     2: np.pi,      # RR
+#     3: 0           # RL
+# }
+
 leg_phase = {
-    0: 0,          # FR
-    1: np.pi,      # FL
-    2: np.pi,      # RR
-    3: 0           # RL
+    0: 0.0,   # FR
+    1: 0.25,  # FL
+    2: 0.5,   # RR
+    3: 0.75   # RL
 }
 
 # 初始化控制器
@@ -71,29 +119,54 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
         roll, pitch, yaw = r.as_euler('xyz', degrees=False)
 
         # 生成目标关节角度
-        target_pos = np.zeros(12)
+        # target_pos = np.zeros(12)
+        target_pos = [0, 0.9, -1.8, 0, 0.9, -1.8, 0, 0.9, -1.8, 0, 0.9, -1.8]  # 初始化为直立姿态
+        # base 期望高度（站立高度）
+        duty_ratio = 0.75  # 支撑相比例
+        swing_time = (1.0 - duty_ratio) / gait.frequency
+        stance_time = duty_ratio / gait.frequency
+
+        leg_origins = {
+            0: np.array([0.0, 0.9, -1.8]),  # FR
+            1: np.array([0.0, 0.9, -1.8]),  # FR
+            2: np.array([0.0, 0.9, -1.8]),  # FR
+            3: np.array([0.0, 0.9, -1.8]),  # FR
+        }
+
         for leg in range(4):
-            phase = sim_time * 2 * np.pi * gait.frequency + leg_phase[leg]
-            side_sign = 1 if leg in [0, 2] else -1  # FR/RR是右腿，FL/RL是左腿
+            phase = (sim_time * gait.frequency + leg_phase[leg]) % 1.0
+            side_sign = 1 if leg in [0, 2] else -1
 
-            # 基础步态
-            abduction = 0.2 * side_sign * np.sin(phase)
-            hip = 0.75 + gait.amplitude * np.sin(phase)
-            knee = -1.3 + 0.15 * np.sin(phase)
+            # 生成足端轨迹
+            foot_target = foot_trajectory(
+                phase * (swing_time + stance_time),
+                swing_time=swing_time,
+                stance_time=stance_time,
+                step_height=0.08,
+                step_length=0.1
+            )
 
-            # 追加 roll 姿态补偿项（单位为 rad，小于 0.3），尝试系数 0.4 可调
-            roll_comp = 0.4 * roll
-            if leg in [0, 2]:  # FR / RR，右侧，roll > 0 会压右腿
-                hip -= roll_comp
-                knee -= 0.7 * roll_comp
-            else:              # FL / RL，左侧
-                hip += roll_comp
-                knee += 0.7 * roll_comp
+            # roll 补偿（仅在支撑相）
+            roll_comp = 0.04 * roll
+            if phase < duty_ratio:
+                if leg in [0, 2]:  # 右侧腿
+                    foot_target[0] += roll_comp
+                    foot_target[2] -= 0.03 * roll_comp
+                else:              # 左侧腿
+                    foot_target[0] -= roll_comp
+                    foot_target[2] += 0.03 * roll_comp
 
-            # 赋值目标角度
-            target_pos[leg * 3 + 0] = abduction
-            target_pos[leg * 3 + 1] = hip
-            target_pos[leg * 3 + 2] = knee
+            # 使用IK求解角度
+            joint_angles = leg_inverse_kinematics(
+                foot_pos=foot_target,
+                leg_origin=leg_origins[leg],
+                side_sign=side_sign
+            )
+
+            # 写入目标角度
+            target_pos[leg * 3 + 0] = joint_angles[0]
+            target_pos[leg * 3 + 1] = joint_angles[1]
+            target_pos[leg * 3 + 2] = joint_angles[2]
 
         
         # 计算控制量
@@ -121,3 +194,6 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
         # 步进仿真
         mujoco.mj_step(model, data)
         viewer.sync()
+
+# gpt卡了周三问
+# 不对，你的修改肯定有问题。你想，实际上你修改之前算出来的末端是对的啊，你起码得沿用那个末端的结果。而你是把foot_target_leg = np.linalg.inv(R_base) @ (foot_world - base_pos - leg_origin)，也就是改变了这个值。我认为正确的修改方式是，足端坐标不变，而是给出一个base，一个足端，然后参考这两个点进行逆运动学求解，这样既能维持原本的足端轨迹，又能限制高度
