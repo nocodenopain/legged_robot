@@ -104,6 +104,7 @@
             <geom class="calf1"/>
             <geom class="calf2"/>
             <geom class="foot"/>
+            <site name="FR_foot_site" pos="0 0 -0.2" size="0.001" />
           </body>
         </body>
       </body>
@@ -130,6 +131,7 @@
             <geom class="calf1"/>
             <geom class="calf2"/>
             <geom class="foot"/>
+            <site name="FL_foot_site" pos="0 0 -0.2" size="0.001" />
           </body>
         </body>
       </body>
@@ -155,6 +157,7 @@
             <geom class="calf1"/>
             <geom class="calf2"/>
             <geom class="foot"/>
+            <site name="RR_foot_site" pos="0 0 -0.2" size="0.001" />
           </body>
         </body>
       </body>
@@ -180,6 +183,7 @@
             <geom class="calf1"/>
             <geom class="calf2"/>
             <geom class="foot"/>
+            <site name="RL_foot_site" pos="0 0 -0.2" size="0.001" />
           </body>
         </body>
       </body>
@@ -200,6 +204,13 @@
     <motor class="hip" name="RL_thigh" joint="RL_thigh_joint"/>
     <motor class="knee" name="RL_calf" joint="RL_calf_joint"/>
   </actuator>
+
+  <sensor>
+    <force name="FR_foot_force" site="FR_foot_site"/>
+    <force name="FL_foot_force" site="FL_foot_site"/>
+    <force name="RR_foot_force" site="RR_foot_site"/>
+    <force name="RL_foot_force" site="RL_foot_site"/>
+  </sensor>
 
   <keyframe>
     <key name="home" qpos="0 0 0.27 1 0 0 0 0 0.9 -1.8 0 0.9 -1.8 0 0.9 -1.8 0 0.9 -1.8"

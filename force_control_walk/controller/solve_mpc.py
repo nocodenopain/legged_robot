@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.linalg import expm
-import quadprog  # 需要安装：pip install quadprog
+# import quadprog  # 需要安装：pip install quadprog
+from qpsolvers import solve_qp
 from utils.util import *
 
 def solveMpc(R_yaw, I_inv, rbf, x0, xd, dt, horizon, gait, mass):
@@ -33,7 +34,6 @@ def solveMpc(R_yaw, I_inv, rbf, x0, xd, dt, horizon, gait, mass):
     
     # 构建输入矩阵
     for i in range(4):
-        print(rbf[:, i].shape)
         Bc[6:9, 3*i:3*(i+1)] = I_inv @ Skew(rbf[:, i])
         Bc[9:12, 3*i:3*(i+1)] = I3 / mass
     
@@ -62,7 +62,7 @@ def solveMpc(R_yaw, I_inv, rbf, x0, xd, dt, horizon, gait, mass):
     h = np.hstack([ubA, -lbA])  # lbA <= Ax <= ubA → Ax <= ubA AND -Ax <= -lbA
     
     # 调用quadprog求解
-    x, _, _ = quadprog.solve_qp(H, g, A, G.T, h, 0)  # 注意quadprog需要G.T
+    x = solve_qp(H, g, A, G.T, h, 0, solver='osqp')  # 注意quadprog需要G.T
     
     return x
 

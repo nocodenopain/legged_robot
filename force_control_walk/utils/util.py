@@ -1,4 +1,5 @@
 import numpy as np
+import mujoco
 
 def quat_to_rotmat(q):
     w, x, y, z = q

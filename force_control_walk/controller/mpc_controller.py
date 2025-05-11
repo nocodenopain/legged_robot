@@ -29,7 +29,6 @@ class MpcController:
                        d_pitch, d_yaw, rbs, mass, I, offset, Kpcom, Kdcom, Kpbase, 
                        Kdbase, dt, IterationsBetweenMpc, stancetime, swingtime, 
                        height, horizon, Kp_cartesian, Kd_cartesian, vz, nIterations):
-        
         # 初始化局部变量
         trajAll = np.zeros(12 * horizon)
         tao = np.zeros((3, 4))
@@ -75,16 +74,15 @@ class MpcController:
         r = np.array([x, y, z])
         
         # 计算控制输入
-        a = Kpcom * (r_ref - r) + Kdcom * (v_ref - v)
+        a = Kpcom @ (r_ref - r) + Kdcom @ (v_ref - v)
         wd = np.array([0, 0, 0])
         qw = matrixLogRot(R.T)
-        aw = Kpbase * qw + Kdbase * (wd - w)
+        aw = Kpbase @ qw + Kdbase @ (wd - w)
         F = mass * (a + np.array([0, 0, 9.81]))
         Tao = I_world @ aw
         b_control = np.concatenate([F, Tao])
         
-        q = np.array([q1, q2, q3, q4])
-        
+        q = np.array([q1, q2, q3, q4]).flatten()
         # 正向运动学
         rsf_body, rbf_body = forwardKinematics(q)
         rbf_world = R @ rbf_body
@@ -96,9 +94,8 @@ class MpcController:
             
             # QP优化
             self.f = qp(rbf_world, b_control, flag)
-            
             for i in range(4):
-                tao[:, i] = -J[:, i*3-2:i*3+1].T @ R.T @ self.f[i*3-2:i*3+1]
+                tao[:, i] = -J[:, i*3:i*3+3].T @ (R.T) @ self.f[i*3:i*3+3]
             
             if self.timer > 1000:  # 站立过程(2s除以dt)
                 self.state = 1
@@ -185,4 +182,5 @@ class MpcController:
                     self.firstswing[i] = 1
                     tao[:, i] = -J[:, i*3-2:i*3+1].T @ R.T @ self.f[i*3-2:i*3+1]
         
-        return tao[:, 0], tao[:, 1], tao[:, 2], tao[:, 3]
+        # return tao[:, 0], tao[:, 1], tao[:, 2], tao[:, 3]
+        return tao.flatten()
