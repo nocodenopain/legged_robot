@@ -2,8 +2,8 @@ import mujoco
 import numpy as np
 import mujoco.viewer
 from scipy.spatial.transform import Rotation as R
-import mink
 import matplotlib.pyplot as plt
+from numpy import cos, sin
 
 class PIDController:
     def __init__(self, kp, ki, kd, dt):
@@ -23,7 +23,7 @@ class PIDController:
 class GaitParams:
     def __init__(self):
         self.amplitude = 0.3
-        self.frequency = 0.1
+        self.frequency = 1
         self.phase_offset = np.pi / 2
 
 # 加载模型
@@ -43,6 +43,14 @@ actuator_indices = [model.actuator(name).id for name in [
     "FL_hip", "FL_thigh", "FL_calf",
     "RR_hip", "RR_thigh", "RR_calf",
     "RL_hip", "RL_thigh", "RL_calf"
+]]
+
+foot_indices = [model.site(name).id for name in [
+    "FR_foot_site", "FL_foot_site", "RR_foot_site", "RL_foot_site"
+]]
+
+joint_site_indices = [model.site(name).id for name in [
+    "FR_hip_site", "FL_hip_site", "RR_hip_site", "RL_hip_site"
 ]]
 
 def foot_trajectory(phase_time, swing_time, stance_time, step_height, step_length):
@@ -76,73 +84,47 @@ def foot_trajectory(phase_time, swing_time, stance_time, step_height, step_lengt
     # 输出为相对 body 坐标系的 (x, z)
     return np.array([foot_xy[0], 0.0, foot_xy[1]])  # 添加 y = 0 作为中间项（用于 3D）
 
+def forward_kinematics(abduction_angle, hip_angle, knee_angle, L1=0.08505, L2=0.2, L3=0.2):
+    r_y = L1
+    # print(hip_angle, knee_angle)
+    r_x = -L2 * sin(hip_angle) - L3 * sin(hip_angle + knee_angle)
+    r_z = -L2 * cos(hip_angle) - L3 * cos(hip_angle + knee_angle)
+    return np.array([r_x, r_y, r_z])
 
-def leg_inverse_kinematics(foot_pos_world, body_pos, body_rot, leg_origin_body, side_sign):
-    """
-    计算给定足端世界坐标位置下的关节角度，使机器人保持稳定姿态。
+def inverse_kinematics(x, y, z, theta_init, l1=0.08505, l2=0.2, l3=0.2):
+    max_iter = 10000
+    tolerance = 1e-4
+    theta = theta_init
+    for i in range(max_iter):
+        x_curr, y_curr, z_curr = forward_kinematics(theta[0], theta[1], theta[2])
+        error = np.array([x - x_curr, y - y_curr, z - z_curr])
+        error_num = np.sqrt((x - x_curr)**2 + (y - y_curr)**2 + (z - z_curr)**2)
+        J = compute_J(theta, l1, l2, l3)
+        delta_theta = np.linalg.pinv(J) @ error
+        theta += delta_theta
+        theta = (theta + np.pi) % (2 * np.pi) - np.pi
+        if error_num < tolerance:
+            break
+        if i == max_iter - 1:
+            print("Inverse kinematics failed to converge.")
+            return None
+    
+    return theta
+        
 
-    参数：
-        foot_pos_world: 世界坐标下的足端目标位置 (3,)
-        body_pos: 期望身体中心位置 (3,)
-        body_rot: 期望身体姿态旋转矩阵 (3, 3)
-        leg_origin_body: 该腿在身体坐标系下的位置
-        side_sign: 左右腿标志，右腿为 1, 左腿为 -1
+def compute_J(q, L1=0.08505, L2=0.2, L3=0.2):
+    theta1, theta2, theta3 = q
+    J = np.array([[0, - L3*cos(theta2 + theta3) - L2*cos(theta2), -L3*cos(theta2 + theta3)], 
+                  [0, 0, 0], 
+                  [0,  L3*sin(theta2 + theta3) + L2*sin(theta2),  L3*sin(theta2 + theta3)]])
+    return J
 
-    返回：
-        abduction, hip, knee 关节角度
-    """
-
-    # 世界 -> 身体坐标系
-    foot_pos_body = np.dot(body_rot.T, foot_pos_world - body_pos)
-
-    # 身体坐标系 -> 腿坐标系（假设腿原点就是 hip 的位置）
-    foot_pos_leg = foot_pos_body - leg_origin_body
-    x, y, z = foot_pos_leg
-
-    # 三连杆参数
-    L1 = 0.0838  # hip to thigh
-    L2 = 0.2     # thigh to knee
-    L3 = 0.2     # knee to foot
-
-    abduction = np.arctan2(y, -z)
-
-    hip_to_foot = np.sqrt(x**2 + z**2)
-    hip_angle = np.arctan2(-x, -z)
-    D = (hip_to_foot**2 - L2**2 - L3**2) / (2 * L2 * L3)
-    knee = np.arccos(np.clip(D, -1.0, 1.0))
-
-    alpha = np.arctan2(z, x)
-    # beta = np.arccos(np.clip((L2**2 + hip_to_foot**2 - L3**2) / (2 * L2 * hip_to_foot), -1.0, 1.0))
-    eps = 1e-6  # 防止除以零的小常数
-    denom = 2 * L2 * hip_to_foot
-
-    if denom < eps:
-        beta = 0.0  # 或者设置为合理的缺省值
-    else:
-        cos_beta = np.clip((L2**2 + hip_to_foot**2 - L3**2) / denom, -1.0, 1.0)
-        beta = np.arccos(cos_beta)
-    hip = -(alpha + beta)
-
-    return np.array([abduction * side_sign, hip, -knee])
-
-def euler_to_rot(euler):
-    roll, pitch, yaw = euler
-    Rx = np.array([[1, 0, 0],
-                   [0, np.cos(roll), -np.sin(roll)],
-                   [0, np.sin(roll), np.cos(roll)]])
-    Ry = np.array([[np.cos(pitch), 0, np.sin(pitch)],
-                   [0, 1, 0],
-                   [-np.sin(pitch), 0, np.cos(pitch)]])
-    Rz = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-                   [np.sin(yaw), np.cos(yaw), 0],
-                   [0, 0, 1]])
-    return Rz @ Ry @ Rx
 
 leg_phase = {
-    0: 0.0,   # FR
-    1: 0.25,  # FL
-    2: 0.5,   # RR
-    3: 0.75   # RL
+    0: 0.5,   # FR
+    1: 0.0,  # FL
+    2: 0.0,   # RR
+    3: 0.5   # RL
 }
 
 # 初始化控制器
@@ -150,15 +132,30 @@ pid_params = {
     'abduction': PIDController(50, 0, 2, model.opt.timestep),
     'hip': PIDController(50, 0, 2, model.opt.timestep),
     'knee_front': PIDController(30, 0, 1, model.opt.timestep),  # 前腿膝盖
-    'knee_rear': PIDController(50, 0, 2, model.opt.timestep),   # 后腿膝盖（支撑力更大）
+    'knee_rear': PIDController(100, 0, 2, model.opt.timestep),   # 后腿膝盖（支撑力更大）
 }
 
 gait = GaitParams()
 mujoco.mj_resetDataKeyframe(model, data, 0)
 
 x_list = []
-z_list = []
+z1 = []
+z2 = []
+z3 = []
+t = 0
 
+# fp = forward_kinematics(0, -0.9, 1.8)
+# joint_angles = inverse_kinematics(fp[0], fp[1], fp[2], [0, 0.1, 0.1])
+# print('joint_angles', joint_angles)
+# fp = forward_kinematics(joint_angles[0], joint_angles[1], joint_angles[2])
+# print(fp)
+
+
+# foot_relevent_xpos = [0, 0.085, -0.25]
+#             # foot_relevent_xpos[1] = foot_relevent_xpos[1] * side_sign
+#             foot_relevent_xpos = foot_relevent_xpos + foot_target_local
+#             x, y, z = foot_relevent_xpos
+init_angles = np.array([0, 0.9, -1.8])
 with mujoco.viewer.launch_passive(model, data) as viewer:
     while viewer.is_running():
         sim_time = data.time
@@ -172,7 +169,6 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
         target_pos = [0, 0.9, -1.8, 0, 0.9, -1.8, 0, 0.9, -1.8, 0, 0.9, -1.8]  # 初始化为直立姿态
         body_pos = data.qpos[0:3]  # 身体位置
         body_euler = np.array([roll, pitch, yaw])
-        body_rot = euler_to_rot(body_euler)
         duty_ratio = 0.75  # 支撑相比例
         swing_time = (1.0 - duty_ratio) / gait.frequency
         stance_time = duty_ratio / gait.frequency
@@ -193,25 +189,30 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
                 phase * (swing_time + stance_time),
                 swing_time=swing_time,
                 stance_time=stance_time,
-                step_height=0.15,
-                step_length=0.3
+                step_height=0.1,
+                step_length=0.15
             )
-            # 转为世界坐标系下的目标足端位置
-            if leg == 1 and foot_target_local[2] != 0 and foot_target_local[0] != 0:
-                x_list.append(foot_target_local[0] + leg_origins[leg][0])
-                z_list.append(foot_target_local[2] + leg_origins[leg][2])
-            elif leg == 1:
-                x_list.append(np.nan)
-                z_list.append(np.nan)
-            foot_target_world = body_pos + np.dot(body_rot, leg_origins[leg] + foot_target_local)
+            foot_relevent_xpos = [0, 0.085, -0.25]
+            # foot_relevent_xpos[1] = foot_relevent_xpos[1] * side_sign
+            foot_relevent_xpos = foot_relevent_xpos + foot_target_local
+            x, y, z = foot_relevent_xpos
+            
 
-            joint_angles = leg_inverse_kinematics(
-                foot_pos_world=foot_target_world,
-                body_pos=body_pos,
-                body_rot=body_rot,
-                leg_origin_body=leg_origins[leg],
-                side_sign=side_sign
-            )
+            ik_ans = inverse_kinematics(x, y, z, init_angles)
+            if ik_ans is None:
+                continue
+            joint_angles = ik_ans
+            fp = forward_kinematics(joint_angles[0], joint_angles[1], joint_angles[2])
+            if leg == 0 and foot_target_local[2] != 0 and foot_target_local[0] != 0:
+                x_list.append(fp[0])
+                z1.append(fp[2])
+                # z2.append(joint_angles[1])
+                # z3.append(joint_angles[2])
+            elif leg == 0:
+                x_list.append(np.nan)
+                z1.append(np.nan)
+                # z2.append(np.nan)
+                # z3.append(np.nan)
 
             target_pos[leg * 3 + 0] = joint_angles[0]
             target_pos[leg * 3 + 1] = joint_angles[1]
@@ -246,12 +247,12 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
 
 # print("x_list:", x_list)
 # print("z_list:", z_list)
-plt.figure(figsize=(8, 4))
-plt.plot(x_list, z_list, label='Foot trajectory')
-plt.title('Foot trajectory in body frame over one gait cycle')
-plt.xlabel('X (forward) [m]')
-plt.ylabel('Z (up) [m]')
-plt.grid(True)
-plt.axis('equal')
-plt.legend()
-plt.show()
+# plt.figure(figsize=(8, 4))
+# plt.plot(x_list, z1, z2, z3, label='Foot trajectory')
+# plt.title('Foot trajectory in body frame over one gait cycle')
+# plt.xlabel('X (forward) [m]')
+# plt.ylabel('Z (up) [m]')
+# plt.grid(True)
+# plt.axis('equal')
+# plt.legend()
+# plt.show()
