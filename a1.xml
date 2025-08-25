@@ -88,6 +88,7 @@
         <joint class="abduction" name="FR_hip_joint"/>
         <geom class="visual" mesh="hip" quat="0 1 0 0"/>
         <geom class="hip_right"/>
+        <site name="FR_hip_site" pos="0 0.055 0" size="0.001" />
         <body name="FR_thigh" pos="0 -0.08505 0">
           <inertial mass="1.013" pos="-0.003237 0.022327 -0.027326" quat="0.999125 -0.00256393 -0.0409531 -0.00806091"
             diaginertia="0.00555739 0.00513936 0.00133944"/>
@@ -115,6 +116,7 @@
         <geom class="visual" mesh="hip"/>
         <geom class="hip_left"/>
         <geom class="collision" size="0.04 0.04" pos="0 0.055 0" quat="1 1 0 0" type="cylinder"/>
+        <site name="FL_hip_site" pos="0 0.055 0" size="0.001" />
         <body name="FL_thigh" pos="0 0.08505 0">
           <inertial mass="1.013" pos="-0.003237 -0.022327 -0.027326" quat="0.999125 0.00256393 -0.0409531 0.00806091"
             diaginertia="0.00555739 0.00513936 0.00133944"/>
@@ -141,6 +143,7 @@
         <joint class="abduction" name="RR_hip_joint"/>
         <geom class="visual" quat="0 0 0 -1" mesh="hip"/>
         <geom class="hip_right"/>
+        <site name="RR_hip_site" pos="0 -0.055 0" size="0.001" />
         <body name="RR_thigh" pos="0 -0.08505 0">
           <inertial mass="1.013" pos="-0.003237 0.022327 -0.027326" quat="0.999125 -0.00256393 -0.0409531 -0.00806091"
             diaginertia="0.00555739 0.00513936 0.00133944"/>
@@ -167,6 +170,7 @@
         <joint class="abduction" name="RL_hip_joint"/>
         <geom class="visual" quat="0 0 1 0" mesh="hip"/>
         <geom class="hip_left"/>
+        <site name="RL_hip_site" pos="0 0.055 0" size="0.001" />
         <body name="RL_thigh" pos="0 0.08505 0">
           <inertial mass="1.013" pos="-0.003237 -0.022327 -0.027326" quat="0.999125 0.00256393 -0.0409531 0.00806091"
             diaginertia="0.00555739 0.00513936 0.00133944"/>

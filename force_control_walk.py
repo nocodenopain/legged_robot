@@ -49,9 +49,9 @@ foot_indices = [model.site(name).id for name in [
     "FR_foot_site", "FL_foot_site", "RR_foot_site", "RL_foot_site"
 ]]
 
-joint_site_indices = [model.site(name).id for name in [
-    "FR_hip_site", "FL_hip_site", "RR_hip_site", "RL_hip_site"
-]]
+# joint_site_indices = [model.site(name).id for name in [
+#     "FR_hip_site", "FL_hip_site", "RR_hip_site", "RL_hip_site"
+# ]]
 
 def foot_trajectory(phase_time, swing_time, stance_time, step_height, step_length):
     """
@@ -66,7 +66,6 @@ def foot_trajectory(phase_time, swing_time, stance_time, step_height, step_lengt
     """
     total_time = swing_time + stance_time
     phase = phase_time / total_time  # 归一化相位 [0, 1)
-
     if phase <= swing_time / total_time:
         # === 腾空阶段（贝塞尔曲线） ===
         swing_phase = phase / (swing_time / total_time)
@@ -85,11 +84,19 @@ def foot_trajectory(phase_time, swing_time, stance_time, step_height, step_lengt
     return np.array([foot_xy[0], 0.0, foot_xy[1]])  # 添加 y = 0 作为中间项（用于 3D）
 
 def forward_kinematics(abduction_angle, hip_angle, knee_angle, L1=0.08505, L2=0.2, L3=0.2):
-    r_y = L1
-    # print(hip_angle, knee_angle)
-    r_x = -L2 * sin(hip_angle) - L3 * sin(hip_angle + knee_angle)
-    r_z = -L2 * cos(hip_angle) - L3 * cos(hip_angle + knee_angle)
-    return np.array([r_x, r_y, r_z])
+    # r_y = L1
+    # # print(hip_angle, knee_angle)
+    # r_x = -L2 * sin(hip_angle) - L3 * sin(hip_angle + knee_angle)
+    # r_z = -L2 * cos(hip_angle) - L3 * cos(hip_angle + knee_angle)
+    # return np.array([r_x, r_y, r_z])
+    s = L2 * sin(hip_angle) + L3 * sin(hip_angle + knee_angle)
+    l = L2 * cos(hip_angle) + L3 * cos(hip_angle + knee_angle)
+
+    x = -s                           # 前后方向（x）不受 ab 影响
+    y = L1 * cos(abduction_angle) + l * sin(abduction_angle)   # 横向，受到 ab 横摆和腿长投影影响
+    z = - l * cos(abduction_angle) - L1 * sin(abduction_angle)                # 垂直方向
+
+    return np.array([x, y, z])
 
 def inverse_kinematics(x, y, z, theta_init, l1=0.08505, l2=0.2, l3=0.2):
     max_iter = 10000
@@ -113,10 +120,32 @@ def inverse_kinematics(x, y, z, theta_init, l1=0.08505, l2=0.2, l3=0.2):
         
 
 def compute_J(q, L1=0.08505, L2=0.2, L3=0.2):
-    theta1, theta2, theta3 = q
-    J = np.array([[0, - L3*cos(theta2 + theta3) - L2*cos(theta2), -L3*cos(theta2 + theta3)], 
-                  [0, 0, 0], 
-                  [0,  L3*sin(theta2 + theta3) + L2*sin(theta2),  L3*sin(theta2 + theta3)]])
+    ab, hip, knee = q
+
+    sh, ch = sin(hip), cos(hip)
+    shk, chk = sin(hip+knee), cos(hip+knee)
+    sa, ca = sin(ab), cos(ab)
+
+    s = L2*sh + L3*shk
+    l = L2*ch + L3*chk
+
+    J = np.zeros((3,3))
+
+    # x
+    J[0,0] = 0
+    J[0,1] = -l
+    J[0,2] = -L3*chk
+
+    # y
+    J[1,0] = -L1*sa + l*ca
+    J[1,1] = -s*sa
+    J[1,2] = -L3*shk*sa
+
+    # z
+    J[2,0] = l*sa - L1*ca
+    J[2,1] = s*ca
+    J[2,2] = L3*shk*ca
+
     return J
 
 
@@ -144,17 +173,8 @@ z2 = []
 z3 = []
 t = 0
 
-# fp = forward_kinematics(0, -0.9, 1.8)
-# joint_angles = inverse_kinematics(fp[0], fp[1], fp[2], [0, 0.1, 0.1])
-# print('joint_angles', joint_angles)
-# fp = forward_kinematics(joint_angles[0], joint_angles[1], joint_angles[2])
-# print(fp)
+support_targets_world = {leg: None for leg in range(4)}
 
-
-# foot_relevent_xpos = [0, 0.085, -0.25]
-#             # foot_relevent_xpos[1] = foot_relevent_xpos[1] * side_sign
-#             foot_relevent_xpos = foot_relevent_xpos + foot_target_local
-#             x, y, z = foot_relevent_xpos
 init_angles = np.array([0, 0.9, -1.8])
 with mujoco.viewer.launch_passive(model, data) as viewer:
     while viewer.is_running():
@@ -206,13 +226,9 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
             if leg == 0 and foot_target_local[2] != 0 and foot_target_local[0] != 0:
                 x_list.append(fp[0])
                 z1.append(fp[2])
-                # z2.append(joint_angles[1])
-                # z3.append(joint_angles[2])
             elif leg == 0:
                 x_list.append(np.nan)
                 z1.append(np.nan)
-                # z2.append(np.nan)
-                # z3.append(np.nan)
 
             target_pos[leg * 3 + 0] = joint_angles[0]
             target_pos[leg * 3 + 1] = joint_angles[1]
